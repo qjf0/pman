@@ -1,0 +1,14 @@
+/* default configuration; copy to config.h and edit */
+static const char *declares[] = {
+	"chat",
+	"article:pinned",
+	"article:etc",
+	"software:mow:version",
+	"software:mow:issue",
+	"software:mow:etc",
+	"user:qjf0:info",
+	NULL
+};
+
+static const int poll_ms   = 300;
+static const int stable_ms = 10000;
