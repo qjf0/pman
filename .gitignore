@@ -3,3 +3,5 @@
 a.out
 pman
 config.h
+tmp*
+COMMIT_MSG

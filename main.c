@@ -1,4 +1,4 @@
-/* pman @alpha 0.1
+/* pman @alpha 0.2
  * https://github.com/qjf0/pman
  *
  * Maintainer: qjf0 <qianjunfan0@outlook.com>
@@ -74,7 +74,7 @@ static int deliverable(const char *archive, const char *addr)
 }
 
 /* Write the six field files into dir. Return OK or error. */
-static enum result write_box(const char *dir, const struct mail *m)
+static enum result write_fields(const char *dir, const struct mail *m)
 {
 	char *user_path = path_join(dir, "user");
 	char *action_path = path_join(dir, "action");
@@ -149,6 +149,47 @@ static enum result write_box(const char *dir, const struct mail *m)
 	return rc;
 }
 
+/* Atomically create a new box directory and write its fields.
+ * Writes into a .tmp.<name>.<timestamp> directory, then moves it into
+ * place. Returns OK, ERR_EXISTS (target taken) or ERR_IO. */
+static enum result write_box(const char *archive, const char *name,
+			     const struct mail *m)
+{
+	char tmpname[1024];
+	char *tmpdir, *final_dir;
+	enum result rc;
+
+	snprintf(tmpname, sizeof(tmpname), ".tmp.%s.%ld",
+		 name, (long)time(NULL));
+	tmpdir = path_join(archive, tmpname);
+	final_dir = path_join(archive, name);
+	if (!tmpdir || !final_dir) {
+		free(tmpdir);
+		free(final_dir);
+		return ERR_IO;
+	}
+
+	if (dir_make(tmpdir) != OK) {
+		free(tmpdir);
+		free(final_dir);
+		return ERR_IO;
+	}
+
+	if (write_fields(tmpdir, m) != OK) {
+		dir_rm_rf(tmpdir);
+		free(tmpdir);
+		free(final_dir);
+		return ERR_IO;
+	}
+
+	rc = dir_move(tmpdir, final_dir);
+	if (rc != OK)
+		dir_rm_rf(tmpdir);
+	free(tmpdir);
+	free(final_dir);
+	return rc;
+}
+
 /* Create a numbered child of m->address and write the mail. */
 enum result action_to(const char *archive, const struct mail *m)
 {
@@ -161,29 +202,21 @@ enum result action_to(const char *archive, const struct mail *m)
 	for (;;) {
 		char hexbuf[64];
 		char newaddr[600];
-		char *dir;
+		enum result r;
 
 		seq++;
 		snprintf(hexbuf, sizeof(hexbuf), "%lx", seq);
 		snprintf(newaddr, sizeof(newaddr), "%s:%s", m->address, hexbuf);
 
-		dir = path_join(archive, newaddr);
-		if (!dir)
-			return ERR_IO;
-		if (mkdir(dir, 0755) == 0) {
-			enum result r = write_box(dir, m);
-
-			if (r == OK)
-				printf("to: %s -> %s (from %s)\n",
-				       m->address, newaddr, m->user);
-			free(dir);
-			return r;
+		r = write_box(archive, newaddr, m);
+		if (r == OK) {
+			printf("to: %s -> %s (from %s)\n",
+			       m->address, newaddr, m->user);
+			return OK;
 		}
-		if (errno != EEXIST) {
-			free(dir);
-			return ERR_IO;
-		}
-		free(dir);	/* sequence taken, try the next one */
+		if (r == ERR_EXISTS)
+			continue;	/* sequence taken, try the next one */
+		return r;
 	}
 }
 
@@ -199,7 +232,7 @@ enum result action_replace(const char *archive, const struct mail *m)
 		free(dir);
 		return ERR_NOT_EXIST;
 	}
-	r = write_box(dir, m);
+	r = write_fields(dir, m);
 	if (r == OK)
 		printf("replace: %s (from %s)\n", m->address, m->user);
 	free(dir);

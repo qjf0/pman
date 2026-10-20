@@ -22,6 +22,7 @@ enum result {
 	ERR_ADDR_INVALID,
 	ERR_NOT_DELIVERABLE,
 	ERR_NOT_EXIST,
+	ERR_EXISTS,
 };
 
 /* a parsed mail */
@@ -53,6 +54,7 @@ enum result file_write(const char *path, const char *data);
 enum result dir_rm_rf(const char *path);
 enum result dir_make(const char *path);
 enum result file_move(const char *src, const char *dst);
+enum result dir_move(const char *old_path, const char *new_path);
 
 /* main.c */
 int         start_daemon(const char *inbox, const char *archive);

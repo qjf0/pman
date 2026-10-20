@@ -1,5 +1,5 @@
 /*
- * postman - utility functions (pure functions / IO primitives)
+ * pman - utility functions (pure functions / IO primitives)
  */
 #define _POSIX_C_SOURCE 200809L
 
@@ -400,5 +400,15 @@ enum result file_move(const char *src, const char *dst)
 	snprintf(tmp, sizeof(tmp), "%s.%ld", dst, (long)time(NULL));
 	if (rename(src, tmp) == 0)
 		return OK;
+	return ERR_IO;
+}
+
+/* Move/rename a directory. Return OK, ERR_EXISTS or ERR_IO. */
+enum result dir_move(const char *old_path, const char *new_path)
+{
+	if (rename(old_path, new_path) == 0)
+		return OK;
+	if (errno == ENOTEMPTY || errno == EEXIST)
+		return ERR_EXISTS;
 	return ERR_IO;
 }
