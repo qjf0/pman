@@ -402,3 +402,27 @@ enum result dir_move(const char *old_path, const char *new_path)
 		return ERR_EXISTS;
 	return ERR_IO;
 }
+
+/* Write the current time as [HH:MM:SS] into buf. */
+void log_now(char *buf, size_t n)
+{
+	time_t t = time(NULL);
+	struct tm *tm = localtime(&t);
+
+	strftime(buf, n, "%H:%M:%S", tm);
+}
+
+/* Map a result code to a short human-readable string. */
+const char *result_str(enum result r)
+{
+	switch (r) {
+	case OK:                  return "ok";
+	case ERR_IO:              return "io error";
+	case ERR_MAIL_INVALID:    return "mail invalid";
+	case ERR_ADDR_INVALID:    return "addr invalid";
+	case ERR_NOT_DELIVERABLE: return "not deliverable";
+	case ERR_NOT_EXIST:       return "not exist";
+	case ERR_EXISTS:          return "exists";
+	}
+	return "?";
+}

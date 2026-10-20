@@ -3,6 +3,7 @@
 #define DEFINE_H
 
 #include <stdint.h>
+#include <stddef.h>
 
 /* integer aliases */
 typedef int8_t   i8;
@@ -61,5 +62,14 @@ enum result deliver(const char *archive, const struct mail *m);
 enum result action_to(const char *archive, const struct mail *m);
 enum result action_replace(const char *archive, const struct mail *m);
 enum result action_delete(const char *archive, const struct mail *m);
+
+/* logging */
+void log_info(const char *fmt, ...);
+void log_ok(const char *user, const char *action, const char *addr,
+	    const char *result);
+void log_err(const char *user, const char *action, const char *addr,
+	     const char *err);
+void log_now(char *buf, size_t n);
+const char *result_str(enum result r);
 
 #endif /* DEFINE_H */

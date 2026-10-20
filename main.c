@@ -1,4 +1,4 @@
-/* pman @alpha 0.3
+/* pman @alpha 0.4
  * https://github.com/qjf0/pman
  *
  * Maintainer: qjf0 <qianjunfan0@outlook.com>
@@ -14,6 +14,7 @@
 #include <signal.h>
 #include <time.h>
 #include <errno.h>
+#include <stdarg.h>
 
 #include "config.h"
 #include "define.h"
@@ -38,6 +39,68 @@ static void sleep_ms(long ms)
 	nanosleep(&ts, NULL);
 }
 
+/* ANSI colors */
+#define RESET  "\033[0m"
+#define DIM    "\033[2m"
+#define RED    "\033[31m"
+#define GREEN  "\033[32m"
+#define CYAN   "\033[36m"
+
+/* log levels */
+#define LOG_INFO 0
+#define LOG_OK   1
+#define LOG_ERR  2
+
+/* global lookup tables */
+static const char *log_tags[]   = { "INFO", "OK  ", "ERR " };
+static const char *log_colors[] = { CYAN, GREEN, RED };
+
+/* Print one log line; msg is already formatted. */
+static void log_print(int lv, const char *msg)
+{
+	char t[16];
+
+	log_now(t, sizeof(t));
+	fprintf(stdout, "%s[%s]%s %s%s%s %s\n",
+		DIM, t, RESET, log_colors[lv], log_tags[lv], RESET, msg);
+}
+
+/* info: free-form message */
+void log_info(const char *fmt, ...)
+{
+	char msg[1024];
+	va_list ap;
+
+	va_start(ap, fmt);
+	vsnprintf(msg, sizeof(msg), fmt, ap);
+	va_end(ap);
+	log_print(LOG_INFO, msg);
+}
+
+/* ok: user action address [-> result] */
+void log_ok(const char *user, const char *action, const char *addr,
+	    const char *result)
+{
+	char msg[1024];
+
+	if (result)
+		snprintf(msg, sizeof(msg), "%-8s%-8s%s -> %s",
+			 user, action, addr, result);
+	else
+		snprintf(msg, sizeof(msg), "%-8s%-8s%s", user, action, addr);
+	log_print(LOG_OK, msg);
+}
+
+/* err: user action address error */
+void log_err(const char *user, const char *action, const char *addr,
+	     const char *err)
+{
+	char msg[1024];
+
+	snprintf(msg, sizeof(msg), "%-8s%-8s%-12s%s", user, action, addr, err);
+	log_print(LOG_ERR, msg);
+}
+
 /* Parse arguments and run the monitor. Return exit code. */
 int main(int argc, char *argv[])
 {
@@ -49,7 +112,12 @@ int main(int argc, char *argv[])
 	signal(SIGINT, on_signal);
 	signal(SIGTERM, on_signal);
 
-	return start_daemon(argv[1], argv[2]);
+	log_info("pman starting");
+
+	int rc = start_daemon(argv[1], argv[2]);
+	log_info("pman stopping");
+
+	return rc;
 }
 
 /* main functions, implemented below main() */
@@ -210,8 +278,7 @@ enum result action_to(const char *archive, const struct mail *m)
 
 		r = create_box(archive, newaddr, m);
 		if (r == OK) {
-			printf("to: %s -> %s (from %s)\n",
-			       m->address, newaddr, m->user);
+			log_ok(m->user, "to", m->address, newaddr);
 			return OK;
 		}
 		if (r == ERR_EXISTS)
@@ -234,7 +301,7 @@ enum result action_replace(const char *archive, const struct mail *m)
 	}
 	r = write_fields(dir, m);
 	if (r == OK)
-		printf("replace: %s (from %s)\n", m->address, m->user);
+		log_ok(m->user, "replace", m->address, NULL);
 	free(dir);
 	return r;
 }
@@ -253,7 +320,7 @@ enum result action_delete(const char *archive, const struct mail *m)
 	}
 	r = dir_rm_rf(dir);
 	if (r == OK)
-		printf("delete: %s (from %s)\n", m->address, m->user);
+		log_ok(m->user, "delete", m->address, NULL);
 	free(dir);
 	return r;
 }
@@ -288,7 +355,11 @@ static void handle_file(const char *inbox, const char *archive,
 	if (r == OK) {
 		/* then deliver */
 		r = deliver(archive, &m);
+		if (r != OK)
+			log_err(m.user, m.action, m.address, result_str(r));
 		mail_free(&m);
+	} else {
+		log_err("-", "-", name, result_str(r));
 	}
 	box = (r == OK) ? "savebox" : "failed";
 
