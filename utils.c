@@ -198,8 +198,9 @@ long seq_max(const char *archive, const char *addr)
 	return max;
 }
 
-/* Parse a mail file into out. Return OK or an error code. */
-enum result mail_parse(const char *path, struct mail *out)
+/* Parse a mail file into out, checking syntax along the way.
+ * Return OK or an error code. */
+enum result parse_mail(const char *path, struct mail *out)
 {
 	FILE *f = fopen(path, "rb");
 	char *line = NULL;
@@ -305,17 +306,6 @@ done:
 	}
 	fclose(f);
 	return rc;
-}
-
-/* Return non-zero if path holds a valid mail. */
-int is_valid_mail(const char *path)
-{
-	struct mail m;
-	enum result r = mail_parse(path, &m);
-
-	if (r == OK)
-		mail_free(&m);
-	return r == OK;
 }
 
 /* Free memory owned by m. */

@@ -1,4 +1,4 @@
-/* pman @alpha 0.2
+/* pman @alpha 0.3
  * https://github.com/qjf0/pman
  *
  * Maintainer: qjf0 <qianjunfan0@outlook.com>
@@ -152,8 +152,8 @@ static enum result write_fields(const char *dir, const struct mail *m)
 /* Atomically create a new box directory and write its fields.
  * Writes into a .tmp.<name>.<timestamp> directory, then moves it into
  * place. Returns OK, ERR_EXISTS (target taken) or ERR_IO. */
-static enum result write_box(const char *archive, const char *name,
-			     const struct mail *m)
+static enum result create_box(const char *archive, const char *name,
+			      const struct mail *m)
 {
 	char tmpname[1024];
 	char *tmpdir, *final_dir;
@@ -208,7 +208,7 @@ enum result action_to(const char *archive, const struct mail *m)
 		snprintf(hexbuf, sizeof(hexbuf), "%lx", seq);
 		snprintf(newaddr, sizeof(newaddr), "%s:%s", m->address, hexbuf);
 
-		r = write_box(archive, newaddr, m);
+		r = create_box(archive, newaddr, m);
 		if (r == OK) {
 			printf("to: %s -> %s (from %s)\n",
 			       m->address, newaddr, m->user);
@@ -258,26 +258,16 @@ enum result action_delete(const char *archive, const struct mail *m)
 	return r;
 }
 
-/* Parse a mail and dispatch to the right action. Return OK or error. */
-enum result write_mail(const char *archive, const char *mailpath)
+/* Deliver a parsed mail by dispatching to its action. Return OK or error. */
+enum result deliver(const char *archive, const struct mail *m)
 {
-	struct mail m;
-	enum result r = mail_parse(mailpath, &m);
-
-	if (r != OK)
-		return r;
-
-	if (strcmp(m.action, "to") == 0)
-		r = action_to(archive, &m);
-	else if (strcmp(m.action, "replace") == 0)
-		r = action_replace(archive, &m);
-	else if (strcmp(m.action, "delete") == 0)
-		r = action_delete(archive, &m);
-	else
-		r = ERR_MAIL_INVALID;
-
-	mail_free(&m);
-	return r;
+	if (strcmp(m->action, "to") == 0)
+		return action_to(archive, m);
+	if (strcmp(m->action, "replace") == 0)
+		return action_replace(archive, m);
+	if (strcmp(m->action, "delete") == 0)
+		return action_delete(archive, m);
+	return ERR_MAIL_INVALID;
 }
 
 /* Process one source mail and archive it into savebox/ or failed/. */
@@ -285,6 +275,7 @@ static void handle_file(const char *inbox, const char *archive,
 			const char *name)
 {
 	char *src = path_join(inbox, name);
+	struct mail m;
 	enum result r;
 	const char *box;
 	char *dir, *dst;
@@ -292,7 +283,13 @@ static void handle_file(const char *inbox, const char *archive,
 	if (!src)
 		return;
 
-	r = write_mail(archive, src);
+	/* parse first, checking syntax along the way */
+	r = parse_mail(src, &m);
+	if (r == OK) {
+		/* then deliver */
+		r = deliver(archive, &m);
+		mail_free(&m);
+	}
 	box = (r == OK) ? "savebox" : "failed";
 
 	dir = path_join(inbox, box);

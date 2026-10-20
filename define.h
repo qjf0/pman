@@ -47,8 +47,7 @@ char       *path_join(const char *dir, const char *name);
 int         hex_is(const char *s);
 long        hex_parse(const char *s);
 long        seq_max(const char *archive, const char *addr);
-enum result mail_parse(const char *path, struct mail *out);
-int         is_valid_mail(const char *path);
+enum result parse_mail(const char *path, struct mail *out);
 void        mail_free(struct mail *m);
 enum result file_write(const char *path, const char *data);
 enum result dir_rm_rf(const char *path);
@@ -58,7 +57,7 @@ enum result dir_move(const char *old_path, const char *new_path);
 
 /* main.c */
 int         start_daemon(const char *inbox, const char *archive);
-enum result write_mail(const char *archive, const char *mailpath);
+enum result deliver(const char *archive, const struct mail *m);
 enum result action_to(const char *archive, const struct mail *m);
 enum result action_replace(const char *archive, const struct mail *m);
 enum result action_delete(const char *archive, const struct mail *m);
