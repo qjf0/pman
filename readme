@@ -1,0 +1,15 @@
+pman @alpha 0.6
+
+pman (short for postman) is a formatted delivery tool. Like a mailman, it
+does exactly three things:
+
+    * Parse mails into a structured format
+    * Decide whether a mail is deliverable based on user groups and
+      delivery permissions (not implemented yet)
+    * Report the processing result through main()'s return value
+
+The database it produces can be rendered into a static site by webb
+(web builder, my other project).
+
+If you want to dig deeper into the code, read main(). I believe good code
+explains itself.

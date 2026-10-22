@@ -15,15 +15,14 @@ typedef uint16_t u16;
 typedef uint32_t u32;
 typedef uint64_t u64;
 
-/* unified result codes */
+/* unified result codes (doubled as exit codes; 1 is the usage error) */
 enum result {
 	OK = 0,
-	ERR_IO,
-	ERR_MAIL_INVALID,
-	ERR_ADDR_INVALID,
-	ERR_NOT_DELIVERABLE,
-	ERR_NOT_EXIST,
-	ERR_EXISTS,
+	ERR_IO = 2,
+	ERR_MAIL_INVALID = 3,
+	ERR_ADDR_INVALID = 4,
+	ERR_NOT_EXIST = 5,
+	ERR_EXISTS = 6,
 };
 
 /* a parsed mail */
@@ -31,11 +30,27 @@ struct mail {
 	char   user[32];
 	char   action[32];
 	char   address[512];
-	u32    date;    /* yyyymmdd */
-	u16    time;    /* hhmm */
-	char **content; /* body lines */
+	u32    date;            /* yyyymmdd */
+	u16    time;            /* hhmm */
+	char **content;         /* body lines */
 	u32    lines;
 };
+
+/* one entry in the deliver map */
+struct action {
+	const char *name;
+	enum result (*fn)(const struct mail *m);
+};
+
+/* global runtime: all shared state lives here */
+struct runtime {
+	const char *archive;   /* archive dir (succeed/ failed/ parent) */
+	const char *mail_path; /* the mail file to process */
+	const char *db;        /* database = output dir (box storage) */
+	struct mail mail;      /* currently parsed mail */
+};
+
+extern struct runtime rt;
 
 /* utils.c */
 int         is_exist(const char *path);
@@ -55,22 +70,18 @@ enum result dir_rm_rf(const char *path);
 enum result dir_make(const char *path);
 enum result file_move(const char *src, const char *dst);
 enum result dir_move(const char *old_path, const char *new_path);
+const char *base_name(const char *path);
+char       *archive_name(const struct mail *m);
 
 /* main.c */
-void        process_mail(const char *inbox, const char *archive,
-			 const char *name);
-enum result deliver(const char *archive, const struct mail *m);
-enum result action_to(const char *archive, const struct mail *m);
-enum result action_replace(const char *archive, const struct mail *m);
-enum result action_delete(const char *archive, const struct mail *m);
+enum result parse(void);
+enum result deliver(const struct mail *m);
+void        archive(enum result r, int parsed);
+void        free_runtime(void);
 
-/* logging */
-void log_info(const char *fmt, ...);
-void log_ok(const char *user, const char *action, const char *addr,
-	    const char *result);
-void log_err(const char *user, const char *action, const char *addr,
-	     const char *err);
-void log_now(char *buf, size_t n);
-const char *result_str(enum result r);
+/* action.c */
+enum result action_to(const struct mail *m);
+enum result action_replace(const struct mail *m);
+enum result action_delete(const struct mail *m);
 
 #endif /* DEFINE_H */

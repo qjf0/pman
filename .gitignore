@@ -5,3 +5,4 @@ pman
 config.h
 tmp*
 COMMIT_MSG
+COMMIT_MSG.en

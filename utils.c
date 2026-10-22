@@ -403,26 +403,20 @@ enum result dir_move(const char *old_path, const char *new_path)
 	return ERR_IO;
 }
 
-/* Write the current time as [HH:MM:SS] into buf. */
-void log_now(char *buf, size_t n)
+/* Return the last path component. */
+const char *base_name(const char *path)
 {
-	time_t t = time(NULL);
-	struct tm *tm = localtime(&t);
+	const char *p = strrchr(path, '/');
 
-	strftime(buf, n, "%H:%M:%S", tm);
+	return p ? p + 1 : path;
 }
 
-/* Map a result code to a short human-readable string. */
-const char *result_str(enum result r)
+/* Build the archive name: user_action_address_<unix timestamp>.mail */
+char *archive_name(const struct mail *m)
 {
-	switch (r) {
-	case OK:                  return "ok";
-	case ERR_IO:              return "io error";
-	case ERR_MAIL_INVALID:    return "mail invalid";
-	case ERR_ADDR_INVALID:    return "addr invalid";
-	case ERR_NOT_DELIVERABLE: return "not deliverable";
-	case ERR_NOT_EXIST:       return "not exist";
-	case ERR_EXISTS:          return "exists";
-	}
-	return "?";
+	char name[1024];
+
+	snprintf(name, sizeof(name), "%s_%s_%s_%ld.mail",
+		 m->user, m->action, m->address, (long)time(NULL));
+	return str_dup(name);
 }
