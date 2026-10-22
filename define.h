@@ -57,7 +57,8 @@ enum result file_move(const char *src, const char *dst);
 enum result dir_move(const char *old_path, const char *new_path);
 
 /* main.c */
-int         start_daemon(const char *inbox, const char *archive);
+void        process_mail(const char *inbox, const char *archive,
+			 const char *name);
 enum result deliver(const char *archive, const struct mail *m);
 enum result action_to(const char *archive, const struct mail *m);
 enum result action_replace(const char *archive, const struct mail *m);

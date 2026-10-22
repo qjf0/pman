@@ -9,6 +9,3 @@ static const char *declares[] = {
 	"user:qjf0:info",
 	NULL
 };
-
-static const int poll_ms   = 300;
-static const int stable_ms = 10000;

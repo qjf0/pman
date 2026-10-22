@@ -1,4 +1,4 @@
-/* pman @alpha 0.4
+/* pman @alpha 0.5
  * https://github.com/qjf0/pman
  *
  * Maintainer: qjf0 <qianjunfan0@outlook.com>
@@ -8,36 +8,12 @@
 #include <stdlib.h>
 #include <string.h>
 #include <dirent.h>
-#include <sys/stat.h>
-#include <sys/types.h>
-#include <unistd.h>
-#include <signal.h>
 #include <time.h>
 #include <errno.h>
 #include <stdarg.h>
 
 #include "config.h"
 #include "define.h"
-
-/* signal flag */
-static volatile sig_atomic_t g_stop = 0;
-
-/* Record the stop request from a signal. */
-static void on_signal(int sig)
-{
-	(void)sig;
-	g_stop = 1;
-}
-
-/* Sleep for ms milliseconds. */
-static void sleep_ms(long ms)
-{
-	struct timespec ts;
-
-	ts.tv_sec = ms / 1000;
-	ts.tv_nsec = (ms % 1000) * 1000000L;
-	nanosleep(&ts, NULL);
-}
 
 /* ANSI colors */
 #define RESET  "\033[0m"
@@ -101,23 +77,75 @@ void log_err(const char *user, const char *action, const char *addr,
 	log_print(LOG_ERR, msg);
 }
 
-/* Parse arguments and run the monitor. Return exit code. */
+/* qsort comparator for file names. */
+static int str_cmp(const void *a, const void *b)
+{
+	return strcmp(*(const char *const *)a, *(const char *const *)b);
+}
+
+/* Collect *.mail files from inbox, sorted by name. Returns the count,
+ * or -1 if inbox cannot be opened. */
+static int collect_mails(const char *inbox, char ***out)
+{
+	DIR *d = opendir(inbox);
+	struct dirent *e;
+	char **mails = NULL;
+	size_t n = 0, cap = 0;
+
+	if (!d)
+		return -1;
+	while ((e = readdir(d))) {
+		size_t len = strlen(e->d_name);
+
+		if (len < 5 || strcmp(e->d_name + len - 5, ".mail") != 0)
+			continue;
+		if (n == cap) {
+			cap = cap ? cap * 2 : 16;
+			mails = realloc(mails, cap * sizeof(*mails));
+			if (!mails)
+				exit(1);
+		}
+		mails[n++] = str_dup(e->d_name);
+	}
+	closedir(d);
+
+	qsort(mails, n, sizeof(*mails), str_cmp);
+	*out = mails;
+	return (int)n;
+}
+
+/* Archive file name: user_action_address_<unix timestamp>.mail */
+static char *archive_name(const struct mail *m)
+{
+	char name[1024];
+
+	snprintf(name, sizeof(name), "%s_%s_%s_%ld.mail",
+		 m->user, m->action, m->address, (long)time(NULL));
+	return str_dup(name);
+}
+
+/* Parse arguments, process every .mail, then exit. */
 int main(int argc, char *argv[])
 {
+	char **mails = NULL;
+	int n, i;
+
 	if (argc != 3) {
 		fprintf(stderr, "usage: %s inbox archive\n", argv[0]);
 		return 1;
 	}
 
-	signal(SIGINT, on_signal);
-	signal(SIGTERM, on_signal);
-
-	log_info("pman starting");
-
-	int rc = start_daemon(argv[1], argv[2]);
-	log_info("pman stopping");
-
-	return rc;
+	n = collect_mails(argv[1], &mails);
+	if (n < 0) {
+		fprintf(stderr, "cannot open inbox: %s\n", argv[1]);
+		return 1;
+	}
+	for (i = 0; i < n; i++) {
+		process_mail(argv[1], argv[2], mails[i]);
+		free(mails[i]);
+	}
+	free(mails);
+	return 0;
 }
 
 /* main functions, implemented below main() */
@@ -337,84 +365,44 @@ enum result deliver(const char *archive, const struct mail *m)
 	return ERR_MAIL_INVALID;
 }
 
-/* Process one source mail and archive it into savebox/ or failed/. */
-static void handle_file(const char *inbox, const char *archive,
-			const char *name)
+/* Process one .mail file: parse, deliver, archive into succeed/ or failed/. */
+void process_mail(const char *inbox, const char *archive, const char *name)
 {
 	char *src = path_join(inbox, name);
 	struct mail m;
 	enum result r;
 	const char *box;
-	char *dir, *dst;
+	char *dir, *dst, *aname;
 
 	if (!src)
 		return;
 
-	/* parse first, checking syntax along the way */
 	r = parse_mail(src, &m);
 	if (r == OK) {
-		/* then deliver */
 		r = deliver(archive, &m);
 		if (r != OK)
 			log_err(m.user, m.action, m.address, result_str(r));
+		aname = archive_name(&m);
 		mail_free(&m);
 	} else {
 		log_err("-", "-", name, result_str(r));
+		aname = str_dup(name);
 	}
-	box = (r == OK) ? "savebox" : "failed";
+	box = (r == OK) ? "succeed" : "failed";
 
 	dir = path_join(inbox, box);
 	if (!dir) {
 		free(src);
+		free(aname);
 		return;
 	}
 	dir_make(dir);
-	dst = path_join(dir, name);
+	dst = path_join(dir, aname);
 	if (dst) {
 		file_move(src, dst);
 		free(dst);
 	}
 	free(dir);
 	free(src);
-}
-
-/* Run the foreground monitor loop. Return the exit code. */
-int start_daemon(const char *inbox, const char *archive)
-{
-	long stable_sec = stable_ms / 1000;
-
-	while (!g_stop) {
-		DIR *d = opendir(inbox);
-		struct dirent *e;
-		time_t now = time(NULL);
-
-		if (!d) {
-			fprintf(stderr, "cannot open inbox: %s\n", inbox);
-			sleep_ms(1000);
-			continue;
-		}
-
-		while ((e = readdir(d))) {
-			const char *name = e->d_name;
-			char *full;
-			struct stat st;
-			int ready = 0;
-
-			if (name[0] == '.')
-				continue;
-			full = path_join(inbox, name);
-			if (!full)
-				continue;
-			if (stat(full, &st) == 0 && S_ISREG(st.st_mode) &&
-			    now - st.st_mtime >= stable_sec)
-				ready = 1;
-			free(full);
-			if (ready)
-				handle_file(inbox, archive, name);
-		}
-		closedir(d);
-
-		sleep_ms(poll_ms);
-	}
-	return 0;
+	free(aname);
 }
