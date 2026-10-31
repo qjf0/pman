@@ -1,4 +1,4 @@
-/* pman @alpha 0.7
+/* pman @alpha 0.8
  * https://github.com/qjf0/pman
  *
  * Maintainer: qjf0 <qianjunfan0@outlook.com>
@@ -198,7 +198,7 @@ static long seq_max(const char *address)
         return max;
 }
 
-/* Write the mail to db/<address>: write a temp file, then rename it. */
+/* Write user, UTC time, action, address, title and content to db/<address>. */
 static int write_mail(const char *address)
 {
         char tmp_path[SIZE];
@@ -214,8 +214,8 @@ static int write_mail(const char *address)
         if (fp == NULL)
                 return ERR_DB_IO;
 
-        fprintf(fp, "%s\n%s\n%s\n%s\n%s\n%s", PAIRCODE, rt.user, rt.action,
-                address, rt.title, rt.content);
+        fprintf(fp, "%s\n%zu\n%s\n%s\n%s\n%s", rt.user, rt.time_utc,
+                rt.action, address, rt.title, rt.content);
         fclose(fp);
 
         if (rename(tmp_path, final_path) != 0) {

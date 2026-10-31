@@ -1,4 +1,4 @@
-pman @alpha 0.7
+pman @alpha 0.8
 
 pman is a mail formatting tool. It was mainly developed for running the
 ClayKit community website, but it can also be used for other purposes.
