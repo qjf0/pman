@@ -1,9 +1,11 @@
-CC ?= cc
-CFLAGS ?= -O2 -Wall -Wextra -std=c11
-TARGET = pman
-SRC = main.c action.c utils.c
+CC      ?= cc
+CFLAGS  ?= -O2 -Wall -Wextra -std=c11
+TARGET   = pman
+SRC      = main.c
 
-$(TARGET): $(SRC) define.h config.h
+all: $(TARGET)
+
+$(TARGET): $(SRC) config.h
 	$(CC) $(CFLAGS) -o $@ $(SRC)
 
 config.h:
@@ -12,4 +14,4 @@ config.h:
 clean:
 	rm -f $(TARGET)
 
-.PHONY: clean
+.PHONY: all clean

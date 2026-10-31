@@ -1,15 +1,42 @@
-pman @alpha 0.6
+pman @alpha 0.7
 
-pman (short for postman) is a formatted delivery tool. Like a mailman, it
-does exactly three things:
+pman is a mail formatting tool. It was mainly developed for running the
+ClayKit community website, but it can also be used for other purposes.
+For example, it is now part of my personal website as well.
 
-    * Parse mails into a structured format
-    * Decide whether a mail is deliverable based on user groups and
-      delivery permissions (not implemented yet)
-    * Report the processing result through main()'s return value
+Usage: pman <mail_path> <db_path> <user> <passwd>
 
-The database it produces can be rendered into a static site by webb
-(web builder, my other project).
+It only does four things:
 
-If you want to dig deeper into the code, read main(). I believe good code
-explains itself.
+        1. Parse the mail you submit to it
+        2. Check user permissions and PAIRCODE
+        3. Write to the database according to the action (if step 2 succeeded)
+        4. Return the result
+
+You should make your own copy of config.h from config.def.h.
+You can manage users in config.h.
+
+Input mail format:
+
+        1    PAIRCODE
+        2    ACTION
+        3    ADDRESS
+        4    TITLE
+        5    CONTENT
+        6    CONTENT...
+        7    CONTENT......
+
+It returns the following error codes, and 0 on success:
+
+        #define ERR_PAIRCODE_MISMATCH  1
+        #define ERR_USER_NOT_FOUND     2
+        #define ERR_WRONG_PASSWORD     3
+        #define ERR_NO_PERMISSION      4
+        #define ERR_DB_IO              5
+        #define ERR_UNKNOWN_ACTION     6
+
+If you are interested in the ClayKit community, take a look here:
+https://claykit.github.io/about
+
+If you want to understand how it works, start by reading main().
+I believe good code explains itself.
